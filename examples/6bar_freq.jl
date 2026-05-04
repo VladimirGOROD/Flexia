@@ -223,3 +223,44 @@ time_span = 1:100
 animate(sys, state, time_span, "triv_dyn.mp4"; framerate = 60, limits = (-0.1, 0.5, -0.1, 0.5))
 
 Flexia.find_natural_freqs(sys, initial)
+
+
+
+
+##
+
+gr1 = [9, 14]
+gr2 = [10, 13]
+gr3 = [11, 12]
+function compute_sensitivity_coefficients(sys, position)
+    initial_freqs = Flexia.find_natural_freqs(sys, position)
+    for joint in sys.joints[gr1]
+        joint.stiffness += 1e-6
+    end
+    assemble!(sys)
+    freqs1 = Flexia.find_natural_freqs(sys, position)
+    for joint in sys.joints[gr1]
+        joint.stiffness -= 1e-6
+    end
+    for joint in sys.joints[gr2]
+        joint.stiffness += 1e-6
+    end
+    assemble!(sys)
+
+    freqs2 = Flexia.find_natural_freqs(sys, position)
+    for joint in sys.joints[gr2]
+        joint.stiffness -= 1e-6
+    end
+    for joint in sys.joints[gr3]
+        joint.stiffness += 1e-6
+    end
+    assemble!(sys)
+
+    freqs3 = Flexia.find_natural_freqs(sys, position)
+    for joint in sys.joints[gr3]
+        joint.stiffness += 1e-6
+    end
+    return [initial_freqs freqs1 freqs2 freqs3] 
+end
+
+compute_sensitivity_coefficients(sys, initial)
