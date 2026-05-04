@@ -8,9 +8,9 @@ mutable struct Body2D <: AbstractBody2D
 
     function Body2D(mass, inertia; length=1.0)
         return new(mass, inertia, [
-                (x) -> 0,
-                (x) -> 0,
-                (x) -> 0
+                (x, t) -> 0,
+                (x, t) -> 0,
+                (x, t) -> 0
             ], -1, length)
     end
 end
@@ -65,9 +65,9 @@ function add_body_to_rhs!(rhs, state, sys, body)
     rhs[position_dofs[2]] = state[velocity_dofs[2]]
     rhs[position_dofs[3]] = state[velocity_dofs[3]]
 
-    rhs[velocity_dofs[1]] += body.forces[1](state[[position_dofs; velocity_dofs]]) / body.mass
-    rhs[velocity_dofs[2]] += body.forces[2](state[[position_dofs; velocity_dofs]]) / body.mass
-    rhs[velocity_dofs[3]] += body.forces[3](state[[position_dofs; velocity_dofs]]) / body.inertia
+    rhs[velocity_dofs[1]] += body.forces[1](state[[position_dofs; velocity_dofs]], state[end])
+    rhs[velocity_dofs[2]] += body.forces[2](state[[position_dofs; velocity_dofs]], state[end])
+    rhs[velocity_dofs[3]] += body.forces[3](state[[position_dofs; velocity_dofs]], state[end])
 end
 
 function get_boundary_points(sys::MBSystem2D, body::Body2D, dofs::AbstractVector{Float64})::Tuple{Point2f, Point2f}

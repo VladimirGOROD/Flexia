@@ -19,8 +19,8 @@
 #
 # Чтобы восстановить ФИЗИЧЕСКУЮ K (для задачи Mv̈ + Kv = 0, где M — настоящая
 # матрица масс), нужно:
-#   K = −M_phys · J[vel, pos]      (умножить на массу, т.к. сила была поделена)
-#   D = −M_phys · J[vel, vel]
+#   K = −mM · J[vel, pos]      (умножить на массу, т.к. сила была поделена)
+#   D = −mM · J[vel, vel]
 #   C = J[λ, pos]
 #
 # Проверка: J[vel, λ] должен быть C^T (без массы). Это и есть настоящий
@@ -28,7 +28,7 @@
 # =============================================================================
 using Pkg
 using Pkg; Pkg.activate("./examples")
-Pkg.add(url="https://github.com/kutsjuice/Flexia.git", rev="diag_stat_bars")
+
 include("real_5bar.jl")
 
 using LinearAlgebra
@@ -41,24 +41,6 @@ println("="^70)
 println("ШАГ 0. Равновесие")
 println("="^70)
 
-sol_static = Matrix{Float64}(undef, number_of_dofs(sys), length(time_span))
-static_solver!(sol_static, initial, func, jacoby)
-q₀ = sol_static[:, end]
-
-@printf "После static_solver!:  ‖func(q₀)‖ = %.3e\n" norm(func(q₀))
-
-# println("Доводка Ньютоном...")
-# for iter in 1:30
-#     r = func(q₀)
-#     nr = norm(r)
-#     nr < 1e-10 && (println("  сошлось за $(iter-1) итераций"); break)
-#     Jq = jacoby(q₀)
-#     δ = (Jq + 1e-12*I) \ r
-#     q₀ .-= δ
-#     iter % 5 == 0 && @printf "  iter %2d:  ‖func‖ = %.3e\n" iter nr
-# end
-# @printf "Итог:  ‖func(q₀)‖ = %.3e\n" norm(func(q₀))
-
 # -----------------------------------------------------------------------------
 # Шаг 1. Индексы (теперь точно известные из исходников Flexia)
 # -----------------------------------------------------------------------------
@@ -67,7 +49,7 @@ q₀ = sol_static[:, end]
 
 bodies_in_order = sys.bodies            # берём из sys, чтобы точно знать порядок
 nb   = last_body_dof(sys)               # = 6 * число тел
-nλ   = number_of_dofs(sys) - nb
+nλ   = last_lm_dof(sys) - nb
 ntot = nb + nλ
 
 pos_idx = Int[]
@@ -91,8 +73,8 @@ println("\n" * "="^70)
 println("ШАГ 2. Санити-чек раскладки и блочной структуры rhs")
 println("="^70)
 
-J = jacoby(q₀)
-
+J = jacoby(initial)
+spy(J)
 # Блок позиционных уравнений (должно быть q̇ = q̇)
 check_pp = norm(J[pos_idx, pos_idx])
 check_pv = norm(J[pos_idx, vel_idx] - I)
@@ -118,19 +100,13 @@ println("\n" * "="^70)
 println("ШАГ 3. Физические матрицы M, K, D, C")
 println("="^70)
 
-m_phys = zeros(npos)
-for (k, bd) in enumerate(bodies_in_order)
-    base = 3*(k-1)
-    m_phys[base+1] = bd.mass
-    m_phys[base+2] = bd.mass
-    m_phys[base+3] = bd.inertia
-end
-M_phys = Diagonal(m_phys)
-@printf "Массы/инерции тел (первые 6): %s ...\n" string(round.(m_phys[1:6], digits=2))
+
+E = Flexia.get_mass_matrix(sys)
 
 # Блоки якобиана силовой части
-J_fq = J[vel_idx, pos_idx]   # = -K_eff / m (включая геом. члены от λ)
-J_fv = J[vel_idx, vel_idx]   # = -D / m
+mK = -J[vel_idx, pos_idx]   # = -K_eff / m (включая геом. члены от λ)
+mC = -J[vel_idx, vel_idx]   # = -D / m
+mM = E[vel_idx, vel_idx]
 J_fλ = J[vel_idx, λ_idx]     # = C^T (без массы!)
 
 # Матрица связей (однозначно)
@@ -140,21 +116,13 @@ C = J[λ_idx, pos_idx]
 # J[vel, λ] должно равняться C^T (без деления на массу)
 check_Ct = J_fλ - C'
 @printf "\nСанити-чек  ‖J[vel, λ] − C^T‖ = %.3e  (ждём ~0)\n" norm(check_Ct)
-
-# Восстанавливаем физические K и D умножением на M_phys
-K = -M_phys * J_fq
-D = -M_phys * J_fv
+# spy(mK)
 
 # Смотрим симметрию K (теперь ДОЛЖНА быть почти идеальной, если всё правильно)
-K_s = (K + K') / 2
-K_a = (K - K') / 2
-asym_frac_K = 100*norm(K_a)/max(norm(K), 1e-12)
-@printf "‖K‖   = %.3e,  ‖K_asym‖ = %.3e  (доля антисимметрии = %.2f %%)\n" norm(K) norm(K_a) asym_frac_K
-
-# Симметрия D аналогично
-D_a = (D - D') / 2
-asym_frac_D = 100*norm(D_a)/max(norm(D), 1e-12)
-@printf "‖D‖   = %.3e,  ‖D_asym‖ = %.3e  (доля антисимметрии = %.2f %%)\n" norm(D) norm(D_a) asym_frac_D
+K_s = (mK + mK') / 2
+K_a = (mK - mK') / 2
+asym_frac_K = 100*norm(K_a)/max(norm(mK), 1e-12)
+@printf "‖K‖   = %.3e,  ‖K_asym‖ = %.3e  (доля антисимметрии = %.2f %%)\n" norm(mK) norm(K_a) asym_frac_K
 
 # -----------------------------------------------------------------------------
 # Шаг 4. Нуль-пространство матрицы связей через QR
@@ -182,22 +150,25 @@ println("\n" * "="^70)
 println("ШАГ 5. Редуцированная задача и собственные частоты")
 println("="^70)
 
-M̃ = V_n' * M_phys * V_n
-K̃ = V_n' * K    * V_n
-D̃ = V_n' * D    * V_n
+M̃ = V_n' * mM * V_n
+K̃ = V_n' * mK    * V_n
 
 asym_Ktilde = norm((K̃ - K̃') / 2) / max(norm(K̃), 1e-12)
 @printf "После проекции: доля антисимметрии K̃ = %.2f %%\n" 100*asym_Ktilde
 
 # Симметризуем
 M̃_sym = Symmetric((M̃ + M̃') / 2)
-K̃_sym = Symmetric((K̃ + K̃') / 2)
+K̃_sym = -Symmetric((K̃ + K̃') / 2)
 
 eig = eigen(Matrix(K̃_sym), Matrix(M̃_sym))
 ω² = real.(eig.values)
 order = sortperm(ω²)
 ω²    = ω²[order]
 V̂    = eig.vectors[:, order]
+
+V = V_n * 0.01*V̂
+
+
 
 println("\n┌───────┬──────────────────┬────────────────┬─────────────────┐")
 println("│ Мода  │      ω², 1/с²    │     ω, рад/с   │      f, Гц      │")
@@ -244,3 +215,9 @@ end
 println("\n" * "="^70)
 println("Результат: ω_rad = sqrt.(ω²),  формы в modes_q (размер $npos × $nmin)")
 println("="^70)
+
+
+state = zeros(number_of_dofs(sys), 100)
+state[pos_idx, :] .= V[:,1]
+time_span = 1:100
+animate(sys, state, time_span, "triv_dyn.mp4"; framerate = 60, limits = (-0.1, 0.5, -0.1, 0.5))
