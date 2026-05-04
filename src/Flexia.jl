@@ -5,6 +5,7 @@ using Makie
 using LinearAlgebra
 # export MBSystem
 # export Body2D
+using ForwardDiff
 
 export Body2D
 export FixedJoint, HingeJoint, TorsionalSpring, TrajectoryJoint
@@ -25,12 +26,12 @@ abstract type AbstractBody2D end
 abstract type AbstractJoint2D end
 abstract type AbstractMarker2D end
 
-include("solvers.jl")
 include("system.jl")
 include("bodies.jl")
 include("joints.jl")
 include("visualize.jl")
 include("markers.jl")
+include("solvers.jl")
 
 function getdofs(sys::MBSystem2D, body::Body2D)
     if (body.index == -1)

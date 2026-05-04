@@ -113,3 +113,64 @@ function static_solver!(sol::Matrix{T}, u0::Vector{T}, func::Function, jac::Func
     end
 
 end
+
+
+
+#
+
+function find_natural_freqs(sys::MBSystem2D, position)
+
+    bodies_in_order = sys.bodies            # берём из sys, чтобы точно знать порядок
+    nb   = last_body_dof(sys)               # = 6 * число тел
+    nλ   = last_lm_dof(sys) - nb
+    ntot = nb + nλ
+
+    pos_idx = Int[]
+    vel_idx = Int[]
+    for bd in bodies_in_order
+        ix, iy, it = get_body_position_dofs(sys, bd)
+        append!(pos_idx, (ix, iy, it))
+        vx, vy, wt = get_body_velocity_dofs(sys, bd)
+        append!(vel_idx, (vx, vy, wt))
+    end
+    λ_idx = (nb+1):ntot
+
+    npos = length(pos_idx)
+
+    func = sys.rhs
+
+    jacoby = (x) -> ForwardDiff.jacobian(func, x)
+
+
+    J = jacoby(position)
+
+    E = Flexia.get_mass_matrix(sys)
+
+    # Блоки якобиана силовой части
+    mK = -J[vel_idx, pos_idx]   # = -K_eff / m (включая геом. члены от λ)
+    mM = E[vel_idx, vel_idx]
+
+    # Матрица связей (однозначно)
+    C = J[λ_idx, pos_idx]
+
+    F_qr = qr(Matrix(C'))
+
+    Qfull = F_qr.Q * Matrix(I, npos, npos)    # принудительно расширяем до 24×24
+    r = rank(C)
+    V_n = Qfull[:, r+1:end]
+
+
+    M̃ = V_n' * mM * V_n
+    K̃ = V_n' * mK    * V_n
+
+    # Симметризуем
+    M̃_sym = Symmetric((M̃ + M̃') / 2)
+    K̃_sym = Symmetric((K̃ + K̃') / 2)
+
+    eig = eigen(Matrix(K̃_sym), Matrix(M̃_sym))
+    ω² = real.(eig.values)
+    order = sortperm(ω²)
+    ω²    = ω²[order]
+    return sqrt.(ω²) / (2π)
+end
+

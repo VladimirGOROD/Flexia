@@ -221,3 +221,5 @@ state = zeros(number_of_dofs(sys), 100)
 state[pos_idx, :] .= V[:,1]
 time_span = 1:100
 animate(sys, state, time_span, "triv_dyn.mp4"; framerate = 60, limits = (-0.1, 0.5, -0.1, 0.5))
+
+Flexia.find_natural_freqs(sys, initial)
