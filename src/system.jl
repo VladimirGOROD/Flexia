@@ -1,6 +1,7 @@
 mutable struct MBSystem2D
     bodies::Vector{AbstractBody2D}
     joints::Vector{AbstractJoint2D}
+    forces::Vector{AbstractForce2D}
     # bodiesnum::Int64
     # jointsnum::Int64
     bodiesdofs::Vector{Int64}
@@ -12,7 +13,7 @@ mutable struct MBSystem2D
     function MBSystem2D()
         default_rhs = (x) -> nothing
         default_jacobian = (x) -> nothing
-        return new([], [], [], [], false, default_rhs, default_jacobian)
+        return new([], [], [], [], [], false, default_rhs, default_jacobian)
     end
 end
 number_of_bodies(sys::MBSystem2D) = length(sys.bodies)
@@ -46,6 +47,9 @@ function assemble!(sys)
         end
         for joint in sys.joints
             add_joint_to_rhs!(ret, state, sys, joint)
+        end
+        for force in sys.forces
+            add_force_to_rhs!(ret, state, sys, force)
         end
         return ret
     end

@@ -75,4 +75,4 @@ time_span = 0:0.01:10
 sol = Matrix{Float64}(undef, number_of_dofs(sys), length(time_span))
 cros!(sol, initial, mass, func, jacoby, step(time_span))
 
-animate(sys, sol, time_span, "time_animation2.mp4"; framerate = 30, limits = (-5,5, -5, 5))
+animate(sys, sol, time_span, "out/pendulum.mp4"; framerate = 30, limits = (-5,5, -5, 5))

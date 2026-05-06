@@ -39,6 +39,17 @@ function get_lms(sys::MBSystem2D, joint::FixedJoint)
     ]
 end
 
+function get_fixed_point(sys::MBSystem2D, joint::FixedJoint, state::AbstractVector{Float64})
+
+    bd = joint.body
+    pos_dofs = get_body_position_dofs(sys, bd)
+
+    _xi = state[pos_dofs[1]]
+    _yi = state[pos_dofs[2]]
+
+    return Point2f(_xi, _yi)
+end
+
 function add_joint_to_rhs!(rhs, state, sys::MBSystem2D, joint::FixedJoint)
     body = joint.body
     last_body_dof = sys.bodiesdofs[body.index]

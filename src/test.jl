@@ -1,5 +1,6 @@
 using ForwardDiff
 using GLMakie
+using Flexia
 
 include("solvers.jl")
 

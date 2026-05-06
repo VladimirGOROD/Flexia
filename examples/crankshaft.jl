@@ -119,4 +119,4 @@ sol = Matrix{Float64}(undef, number_of_dofs(sys), length(time_span))
 cros!(sol, initial_state, mass_matrix, func, jacoby, step(time_span))
 
 # Animate
-animate(sys, sol, time_span, "crankshaft.mp4"; framerate=30, limits=(-2, 5, -2, 2))
+animate(sys, sol, time_span, "out/crankshaft.mp4"; framerate=30, limits=(-2, 5, -2, 2))
