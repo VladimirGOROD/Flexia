@@ -3,13 +3,15 @@
 1. 2D problems
    1. Implement hinge joint (✔)
    2. Change autodiff jacobian into analytical (✘)
-   3. Implement Slider Joint (✘)
-   4. Make Module (✘) and split into scripts (✔)
+   3. Implement Slider Joint (✔)
+   4. Make Module (✔) and split into scripts (✔)
    5. Add tests (3%)
    6. Visualization (GLMakie):
       1. Bodies as rods (✔)
       2. Hinges as sircles (✔)
-   7. Add dissipation to the joints
+      3. Sliders as rectangles ( )
+      4. Fixed as dash lines ( )
+   7. Add dissipation to the joints - ( )
 2. 3D problems
    1. 3D body
    2. Hinge, Slider, Spherical joints

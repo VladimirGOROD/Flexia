@@ -27,14 +27,14 @@ bd7 = Body2D(m7, 500)
 bd8 = Body2D(m8, 500)
 # bd2 = Body2D(10, 1)
 
-bd1.forces[2] = (x) -> -bd1.mass * g
-bd2.forces[2] = (x) -> -bd2.mass * g
-bd3.forces[2] = (x) -> -bd3.mass * g
-bd4.forces[2] = (x) -> -bd4.mass * g
-bd5.forces[2] = (x) -> -bd5.mass * g
-bd6.forces[2] = (x) -> -bd6.mass * g
-bd7.forces[2] = (x) -> -bd7.mass * g
-bd8.forces[2] = (x) -> -bd8.mass * g
+bd1.forces[2] = (x, t) -> -bd1.mass * g
+bd2.forces[2] = (x, t) -> -bd2.mass * g
+bd3.forces[2] = (x, t) -> -bd3.mass * g
+bd4.forces[2] = (x, t) -> -bd4.mass * g
+bd5.forces[2] = (x, t) -> -bd5.mass * g
+bd6.forces[2] = (x, t) -> -bd6.mass * g
+bd7.forces[2] = (x, t) -> -bd7.mass * g
+bd8.forces[2] = (x, t) -> -bd8.mass * g
 
 jnt1 = FixedJoint(bd1)
 
@@ -48,11 +48,11 @@ jnt8 = HingeJoint(bd7,bd8)
 
 jnt9 = FixedJoint(bd8)
 
-tcp2 = TorsionalSpring(bd2, bd3, 100000.,0.0, 0.)
-tcp3 = TorsionalSpring(bd3, bd4, 100000.,0.0, 0.)
-tcp4 = TorsionalSpring(bd4, bd5, 100000.,0.0, 0.)
-tcp5 = TorsionalSpring(bd5, bd6, 100000.,0.0, 0.)
-tcp6 = TorsionalSpring(bd6, bd7, 100000.,0.0, 0.)
+tcp2 = TorsionalSpring(jnt3, 100000.,0.0, 0.)
+tcp3 = TorsionalSpring(jnt4, 100000.,0.0, 0.)
+tcp4 = TorsionalSpring(jnt5, 100000.,0.0, 0.)
+tcp5 = TorsionalSpring(jnt6, 100000.,0.0, 0.)
+tcp6 = TorsionalSpring(jnt7, 100000.,0.0, 0.)
 
 
 set_position_on_second_body!(jnt2, SA[-1., 0])
@@ -74,8 +74,8 @@ set_position_on_second_body!(jnt7, SA[-1., 0])
 
 set_position_on_first_body!(jnt8, SA[1., 0])
 
-set_position!(jnt9, SA[7.,7.])
-set_rotation!(jnt9, pi/2)
+setposition!(jnt9, SA[7.,7.])
+setrotation!(jnt9, pi/2)
 
 sys = MBSystem2D()
 
@@ -152,100 +152,15 @@ initial[bd8_t_ind] = pi/2
 
 func(initial)
 jacoby(initial)
-mass = zeros(number_of_dofs(sys), number_of_dofs(sys));
-for i in 1:last_body_dof(sys)
-    mass[i, i] = 1
-end
-time_span = 0:0.005:20
+
+mass = get_mass_matrix(sys)
+
+time_span = 0:0.05:200
 
 sol1 = Matrix{Float64}(undef, number_of_dofs(sys), length(time_span))
 cros!(sol1, initial, mass, func, jacoby, step(time_span))
-animate(sys, sol1, time_span, "diag_bar.mp4"; framerate = 60, limits = (-2,13, -2, 13))
+animate(sys, sol1, time_span, "out/diag_bar.mp4"; framerate = 60, limits = (-2,13, -2, 13))
 
 sol2 = Matrix{Float64}(undef, number_of_dofs(sys), length(time_span))
 static_solver!( sol2 , initial, func, jacoby)
-animate(sys, sol2, time_span, "diag_bar_stat.mp4"; framerate = 60, limits = (-2, 13, -2, 13))
-
-# # после отрыва заделки
-
-function save_vector(vector::Vector, filename::String)
-    try
-        open(filename, "w") do io
-            JSON.print(io, vector)
-        end
-        println("✓ Vector saved to $filename")
-    catch e
-        println("✗ Error saving: $e")
-    end
-end
-
-save_vector(sol2[:, end], "sol22.json")
-
-function eigenvector_matrix(A::AbstractMatrix)
-    # Validate input is square
-    m, n = size(A)
-    if m != n
-        error("Input matrix must be square, got $(m)×$(n)")
-    end
-    
-    # Compute eigen decomposition
-    F = eigen(A)
-    
-    # Return eigenvector matrix (each column is an eigenvector)
-    return F.vectors
-end
-
-function get_imaginary_part(matrix::AbstractMatrix)
-    return imag.(matrix)
-end
-
-eigen_matrix = get_imaginary_part(eigenvector_matrix(jacoby(initial)))
-
-function save_matrix_to_json(matrix::AbstractMatrix, filename::String)
-    data = Dict{String, Any}(
-        "eltype" => string(eltype(matrix)),
-        "size" => collect(size(matrix)),
-        "data" => matrix
-    )
-    
-    open(filename, "w") do io
-        JSON.print(io, data, 2)
-    end
-    
-    println("✓ Matrix saved to $filename")
-    return true
-end
-
-function write_matrix_formatted(filename::String, matrix::AbstractMatrix)
-    open(filename, "w") do file
-        # Записываем открывающую скобку
-        write(file, "[")
-        
-        nrows, ncols = size(matrix)
-        
-        for i in 1:nrows
-            # Переходим на новую строку для всех строк кроме первой
-            if i > 1
-                write(file, " ")
-            end
-            
-            # Записываем элементы строки
-            for j in 1:ncols
-                write(file, string(matrix[i, j]))
-                if j < ncols
-                    write(file, " ")
-                end
-            end
-            
-            # Записываем разделитель строк или закрывающую скобку
-            if i < nrows
-                write(file, "\n")
-            else
-                write(file, "]")
-            end
-        end
-    end
-end
-
-save_matrix_to_json(eigen_matrix, "eigen_matrix.json")
-write_matrix_formatted("eigen_matrix.txt", eigen_matrix)
+animate(sys, sol2, time_span, "out/diag_bar_stat.mp4"; framerate = 60, limits = (-2, 13, -2, 13))

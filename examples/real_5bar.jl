@@ -17,7 +17,6 @@ K₅ = K₂
 K₆ = K₁
 
 
-const angle_5 = deg2rad(-90)
 
 # Массы в кг
 m1 = 23e-3
@@ -56,14 +55,14 @@ jnt5 = HingeJoint(bd4, bd5)
 jnt6 = HingeJoint(bd5, bd6)
 jnt7 = HingeJoint(bd6, bd7)
 
-tcp1 = TorsionalSpring(bd1, bd2, K₁, deg2rad(-90), 0., 0.015)
-tcp2 = TorsionalSpring(bd2, bd3, K₂, deg2rad(45), 0., 0.015)
+tcp1 = TorsionalSpring(jnt2, K₁, deg2rad(-90), 0., 0.03)
+tcp2 = TorsionalSpring(jnt3, K₂, deg2rad(45), 0., 0.03)
 
-tcp3 = TorsionalSpring(bd3, bd4, K₃, deg2rad(45), 0., 0.015)
-tcp4 = TorsionalSpring(bd4, bd5, K₄, deg2rad(45), 0., 0.015)
+tcp3 = TorsionalSpring(jnt4, K₃, deg2rad(45), 0., 0.03)
+tcp4 = TorsionalSpring(jnt5, K₄, deg2rad(45), 0., 0.03)
 
-tcp5 = TorsionalSpring(bd5, bd6, K₅, deg2rad(45), 0., 0.015)
-tcp6 = TorsionalSpring(bd6, bd7, K₆, angle_5, 0., 0.015)
+tcp5 = TorsionalSpring(jnt6, K₅, deg2rad(45), 0., 0.03)
+tcp6 = TorsionalSpring(jnt7, K₆, deg2rad(-90), 0., 0.03)
 
 # Позиции присоединений: всё было в дм, теперь в м (делим на 10)
 set_position_on_first_body!(jnt2, SA[0.15, 0.])
@@ -169,11 +168,10 @@ func(initial)
 jacoby(initial)
 
 mass = Flexia.get_mass_matrix(sys)
-# ##
-# time_span = 0:0.005:10
-# sol1 = Matrix{Float64}(undef, number_of_dofs(sys), length(time_span))
-# cros!(sol1, initial, mass, func, jacoby, step(time_span))
 
-# # Лимиты графика тоже в метрах
-# animate(sys, sol1, time_span, "triv_dyn.mp4"; framerate = 60, limits = (-0.1, 0.5, -0.1, 0.5))
+time_span = 0:0.005:10
+sol1 = Matrix{Float64}(undef, number_of_dofs(sys), length(time_span))
+cros!(sol1, initial, mass, func, jacoby, step(time_span))
 
+# Лимиты графика тоже в метрах
+animate(sys, sol1, time_span, "triv_dyn.mp4"; framerate = 60, limits = (-0.1, 0.5, -0.1, 0.5))

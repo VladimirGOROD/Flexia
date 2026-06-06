@@ -1,0 +1,64 @@
+---
+title: "Optimal trajectory planning for kinematically redundant parallel mechnanism"
+author: 
+  - name: Michael Kuts
+    orcid: 0000-0002-0760-5497
+    corresponding: true
+    email: kuts@bmstu.ru
+    roles:
+      - Investigation
+      - Software
+      - Visualization
+    affiliations:
+      - Bauman Moscow State Technical University
+  - name: Pavel Larushkin
+    orcid: 0000-0002-0760-5497
+    corresponding: true
+    email: pav.and.lar@bmstu.ru
+    roles:
+      - Investigation
+      - Software
+    affiliations:
+      - Bauman Moscow State Technical University
+  - name: Alexey Novikov
+    orcid: 0000-0002-0760-5497
+    corresponding: true
+    email: novikov@email.com
+    roles:
+      - Investigation
+      - Project administration
+    affiliations:
+      - Mechanical Engineering Research Institute of the Russian Academy of Sciences
+  - name: Alexey Fomin
+    orcid: 0000-0002-0760-5497
+    corresponding: true
+    email: fomin@email.com
+    roles:
+      - Investigation
+      - Visualization
+    affiliations:
+      - Mechanical Engineering Research Institute of the Russian Academy of Sciences
+keywords:
+  - parallel kinematics
+  - trajectory planning
+  - inverce dynamics
+  - julia
+abstract: |
+  Some abstract
+plain-language-summary: |
+  Summary
+date: last-modified
+bibliography: references.bib
+citation:
+  container-title: Redundant parmech
+number-sections: true
+
+engine: julia
+---
+
+## Introduction
+## Methods
+
+## Results
+## Discussion
+## Conclusion

@@ -18,16 +18,16 @@ bd3 = Body2D(m3, 100)
 
 # bd2 = Body2D(10, 1)
 
-bd1.forces[2] = (x) -> -m1 * bd1.mass * g
-bd2.forces[2] = (x) -> -m2 * bd2.mass * g
-bd3.forces[2] = (x) -> -m3 * bd3.mass * g
+bd1.forces[2] = (x, t) -> -m1 * bd1.mass * g
+bd2.forces[2] = (x, t) -> -m2 * bd2.mass * g
+bd3.forces[2] = (x, t) -> -m3 * bd3.mass * g
 
 jnt1 = FixedJoint(bd1)
 jnt2 = HingeJoint(bd1, bd2)
 jnt3 = HingeJoint(bd2, bd3)
 
-tcp1 = TorsionalSpring(bd1, bd2, 100000.,0.0, 0.)
-tcp2 = TorsionalSpring(bd2, bd3, 100000.,0.0, 0.)
+tcp1 = TorsionalSpring(jnt2, 100000.,0.0, 0.)
+tcp2 = TorsionalSpring(jnt3, 100000.,0.0, 0.)
 
 set_position_on_first_body!(jnt2, SA[1.,0])
 set_position_on_second_body!(jnt2, SA[-1., 0])
@@ -76,10 +76,7 @@ initial[bd3_t_ind] = asin(0.1 / 1)
 func(initial)
 jacoby(initial)
 
-mass = zeros(number_of_dofs(sys), number_of_dofs(sys));
-for i in 1:last_body_dof(sys)
-    mass[i, i] = 1
-end
+mass = get_mass_matrix(sys)
 
 time_start = 0
 time_end = 1
@@ -88,8 +85,8 @@ time_span = range(time_start, time_end, time_step)
 sol = Matrix{Float64}(undef, number_of_dofs(sys), length(time_span))
 # cros!(sol, initial, mass, func, jacoby, step(time_span))
 static_solver!( sol , initial, func, jacoby)
-animate(sys, sol, time_span, "stat_bar13.mp4"; framerate = 30, limits = (-5,5, -5, 5))
-
+animate(sys, sol, time_span, "out/stat_bar13.mp4"; framerate = floor(Int64, 1.0/step(time_span)), limits = (-5,5, -5, 5))
+#
 R1 = get_lms(sys, jnt1)
 R2 = get_lms(sys, jnt2)
 R3 = get_lms(sys, jnt3)
@@ -164,7 +161,7 @@ sol2 = Matrix{Float64}(undef, number_of_dofs(sys), length(time_span))
 
 cros!(sol2, initial2, mass, func, jacoby, step(time_span))
 
-animate(sys, sol2, time_span, "dyn_bar13.mp4"; framerate = 30, limits = (-5,5, -5, 5))
+animate(sys, sol2, time_span, "out/dyn_bar13.mp4"; framerate = 30, limits = (-5,5, -5, 5))
 
 lms111 = sol2[R1[1], time_step]
 lms122 = sol2[R1[2], time_step]
@@ -189,9 +186,9 @@ println("Реакция шарнира 3 по оси Х,Y = [$lms311, $lms322]")
 println("Реакция пружины 1 момент = $M11")
 println("Реакция пружины 2 момент = $M22")
 
-write_matrix_formatted("solution.txt", sol)
+write_matrix_formatted("out/solution.txt", sol)
 
-write_matrix_formatted("sol_dynamic.txt", sol2)
+write_matrix_formatted("out/sol_dynamic.txt", sol2)
 
 
 f = Figure()
@@ -256,4 +253,4 @@ l9 = lines!(ax3, time, react_TCP2, linestyle = :dash)
 
 Legend(f[2 , 2], [l7,l8,l9], ["M1(Fix)", "TCP1", "TCP2"], framevisible = false, halign = :left, valign = :top)
 
-save("Reactions.png", f)
+save("out/Reactions.png", f)

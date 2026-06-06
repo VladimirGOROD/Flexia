@@ -1,2 +1,7 @@
 Manifest.toml
 *.mp4
+out/*
+*/.quarto/
+*/*/.quarto/
+*/*/*_files/
+*.html

@@ -10,25 +10,18 @@ mutable struct FixedJoint <: AbstractJoint2D
     end
 end
 
-function set_position!(joint::FixedJoint, pos)
+function setposition!(joint::FixedJoint, pos)
     joint.pos = SA[pos[1], pos[2]]
     return nothing
 end
 
-function set_rotation!(joint::FixedJoint, θ)
+function setrotation!(joint::FixedJoint, θ)
     joint.θ = θ
     return nothing
 end
 
 number_of_dofs(::FixedJoint) = 3
 
-function add!(sys::MBSystem2D, joint::AbstractJoint2D)
-    push!(sys.joints, joint)
-    # sys.jointsnum += 1;
-    last_joint_dof = last_lm_dof(sys) + number_of_dofs(joint)
-    push!(sys.lmdofs, last_joint_dof)
-    setid!(joint, length(sys.joints))
-end
 
 function get_lms(sys::MBSystem2D, joint::FixedJoint)
     last_lm = sys.lmdofs[joint.index]
@@ -50,7 +43,7 @@ function get_fixed_point(sys::MBSystem2D, joint::FixedJoint, state::AbstractVect
     return Point2f(_xi, _yi)
 end
 
-function add_joint_to_rhs!(rhs, state, sys::MBSystem2D, joint::FixedJoint)
+function add_to_rhs!(rhs, state, sys::MBSystem2D, joint::FixedJoint)
     body = joint.body
     last_body_dof = sys.bodiesdofs[body.index]
 
@@ -76,7 +69,18 @@ function add_joint_to_rhs!(rhs, state, sys::MBSystem2D, joint::FixedJoint)
     rhs[joint_dofs[2]] = state[position_dofs[2]] - joint.pos[2]
     rhs[joint_dofs[3]] = state[position_dofs[3]] - joint.θ
 end
+function compute_kinematic_residual!(residual::Vector{Float64}, coordinates::Vector{Float64}, sys::MBSystem2D, joint::FixedJoint)
+    body = joint.body
 
+    generalized_dofs = get_body_generalized_dofs(sys, body)
+
+    joint_dofs = get_lms(sys, joint) .- last_body_dof(sys)
+
+    residual[joint_dofs[1]] = coordinates[generalized_dofs[1]] - joint.pos[1]
+    residual[joint_dofs[2]] = coordinates[generalized_dofs[2]] - joint.pos[2]
+    residual[joint_dofs[3]] = coordinates[generalized_dofs[3]] - joint.θ
+    return nothing
+end
 
 mutable struct HingeJoint <: AbstractJoint2D
     body1::Body2D
@@ -86,7 +90,7 @@ mutable struct HingeJoint <: AbstractJoint2D
     index::Int64
 
     function HingeJoint(bd1::Body2D, bd2::Body2D)
-        return new(bd1, SA[0.0, 0.0], bd2, SA[0.0, 0.0])
+        return new(bd1, SA[0.0, 0.0], bd2, SA[0.0, 0.0], -1)
     end
 end
 
@@ -112,7 +116,7 @@ function get_lms(sys::MBSystem2D, joint::HingeJoint)
     ]
 end
 
-function add_joint_to_rhs!(rhs, state, sys::MBSystem2D, joint::HingeJoint)
+function add_to_rhs!(rhs, state, sys::MBSystem2D, joint::HingeJoint)
     bd1 = joint.body1
     bd2 = joint.body2
 
@@ -125,17 +129,17 @@ function add_joint_to_rhs!(rhs, state, sys::MBSystem2D, joint::HingeJoint)
     _yi = state[bd1_p_dofs[2]]
     _θi = state[bd1_p_dofs[3]]
 
-    vxi = state[bd1_v_dofs[1]]
-    vyi = state[bd1_v_dofs[2]]
-    _ωi = state[bd1_v_dofs[3]]
+    # vxi = state[bd1_v_dofs[1]]
+    # vyi = state[bd1_v_dofs[2]]
+    # _ωi = state[bd1_v_dofs[3]]
 
     _xj = state[bd2_p_dofs[1]]
     _yj = state[bd2_p_dofs[2]]
     _θj = state[bd2_p_dofs[3]]
 
-    vxj = state[bd2_v_dofs[1]]
-    vyj = state[bd2_v_dofs[2]]
-    _ωj = state[bd2_v_dofs[3]]
+    # vxj = state[bd2_v_dofs[1]]
+    # vyj = state[bd2_v_dofs[2]]
+    # _ωj = state[bd2_v_dofs[3]]
 
     lms = get_lms(sys, joint)
     λ1 = state[lms[1]]
@@ -164,6 +168,36 @@ function add_joint_to_rhs!(rhs, state, sys::MBSystem2D, joint::HingeJoint)
 
 end
 
+
+function compute_kinematic_residual!(residual::Vector{Float64}, coordinates::Vector{Float64}, sys::MBSystem2D, joint::FixedJoint)
+    bd1 = joint.body1
+    bd2 = joint.body2
+
+    bd1_g_dofs = get_body_generalized_dofs(sys, bd1)
+    bd2_g_dofs = get_body_generalized_dofs(sys, bd2)
+
+    _xi = coordinates[bd1_g_dofs[1]]
+    _yi = coordinates[bd1_g_dofs[2]]
+    _θi = coordinates[bd1_g_dofs[3]]
+
+    _xj = coordinates[bd2_g_dofs[1]]
+    _yj = coordinates[bd2_g_dofs[2]]
+    _θj = coordinates[bd2_g_dofs[3]]
+
+    xci = joint.body1_hinge_point[1]
+    yci = joint.body1_hinge_point[2]
+    xcj = joint.body2_hinge_point[1]
+    ycj = joint.body2_hinge_point[2]
+
+    residual[joint_dofs[1]] = (_xi + xci * cos(_θi) - yci * sin(_θi)) - 
+                         (_xj + xcj * cos(_θj) - ycj * sin(_θj))
+    residual[joint_dofs[2]] = (_yi + xci * sin(_θi) + yci * cos(_θi)) -
+                         (_yj + xcj * sin(_θj) + ycj * cos(_θj))
+
+
+    return nothing;
+end
+
 function get_hinge_point(system::MBSystem2D, joint::HingeJoint, state::AbstractVector{Float64})
     bd = joint.body1
     pos_dofs = get_body_position_dofs(system, bd)
@@ -180,113 +214,28 @@ function get_hinge_point(system::MBSystem2D, joint::HingeJoint, state::AbstractV
     )
 end
 
-mutable struct TorsionalSpring <: AbstractJoint2D
+mutable struct SliderJoint <: AbstractJoint2D
     body1::Body2D
+    body1_position::SVector{2,Float64}
+    body1_direction::SVector{2,Float64}
     body2::Body2D
-    stiffness::Float64
-    rest_angle::Float64
-    damping::Float64
-    draw_rad::Float64
+    body2_position::SVector{2,Float64}
+    body2_direction::SVector{2,Float64}
+    alpha1::Float64
+    alpha2::Float64
     index::Int64
-    
-    function TorsionalSpring(body1::Body2D, body2::Body2D, stiffness::Float64=1.0, rest_angle::Float64=0.0, damping::Float64=0.0, draw_rad::Float64=0.15)
-        return new(body1, body2, stiffness, rest_angle, damping, draw_rad, -1)
+
+
+    function SliderJoint(bd1::Body2D, bd2::Body2D)
+        α1 = 0;
+        α2 = 0;
+        return new(bd1, SA[0.0, 0.0], SA[1.0, 0.0], bd2, SA[0.0, 0.0], SA[1.0, 0.0], α1, α2, -1)
     end
 end
 
-number_of_dofs(::TorsionalSpring) = 0  # пружина не добавляет лагранжевых множителей
+number_of_dofs(::SliderJoint) = 2
 
-function add!(sys::MBSystem2D, spring::TorsionalSpring)
-    push!(sys.joints, spring)
-    # Пружина не добавляет лагранжевых множителей, поэтому не увеличиваем lmdofs
-    setid!(spring, length(sys.joints))
-end
-
-function add_joint_to_rhs!(rhs, state, sys::MBSystem2D, spring::TorsionalSpring)
-    bd1 = spring.body1
-    bd2 = spring.body2
-    
-    # Получаем индексы DOF
-    bd1_pos_dofs = get_body_position_dofs(sys, bd1)
-    bd1_vel_dofs = get_body_velocity_dofs(sys, bd1)
-    bd2_pos_dofs = get_body_position_dofs(sys, bd2)
-    bd2_vel_dofs = get_body_velocity_dofs(sys, bd2)
-    
-    # Текущие углы и угловые скорости
-    θ1 = state[bd1_pos_dofs[3]]
-    θ2 = state[bd2_pos_dofs[3]]
-    ω1 = state[bd1_vel_dofs[3]]
-    ω2 = state[bd2_vel_dofs[3]]
-    
-    # Относительное смещение и скорость
-    Δθ = θ1 - θ2 - spring.rest_angle
-    Δω = ω1 - ω2
-    
-    # Полный момент (пружина + демпфер)
-    τ = spring.stiffness * Δθ + spring.damping * Δω
-    
-    # Добавляем в угловые ускорения (делим на инерцию)
-    rhs[bd1_vel_dofs[3]] += -τ
-    rhs[bd2_vel_dofs[3]] += τ
-end
-
-# Вспомогательная функция для расчета момента пружины
-function get_spring_moment(spring::TorsionalSpring, θ1::Float64, θ2::Float64)
-    Δθ1 = θ1 - spring.rest_angle
-    Δθ2 = θ2 - spring.rest_angle
-    return spring.stiffness * (Δθ1 - Δθ2)
-end
-
-# Функция для получения энергии пружины
-function get_spring_energy(spring::TorsionalSpring, θ1::Float64, θ2::Float64)
-    Δθ1 = θ1 - spring.rest_angle
-    Δθ2 = θ2 - spring.rest_angle
-    Δθ_rel = Δθ1 - Δθ2
-    return 0.5 * spring.stiffness * Δθ_rel^2
-end
-
-function get_torsionalSpring_point(system::MBSystem2D, spring::TorsionalSpring, state::AbstractVector{Float64})
-    bd1 = spring.body1
-    pos_dofs1 = get_body_position_dofs(system, bd1)
-    _xi1 = state[pos_dofs1[1]]
-    _yi1 = state[pos_dofs1[2]]
-    _θi1 = state[pos_dofs1[3]]
-
-    bd2 = spring.body2
-    pos_dofs2 = get_body_position_dofs(system, bd2)
-    _xi2 = state[pos_dofs2[1]]
-    _yi2 = state[pos_dofs2[2]]
-    _θi2 = state[pos_dofs2[3]]
-
-    _xi = _xi1 + bd1.length*cos(_θi1)
-    _yi = _yi1 + bd1.length*sin(_θi1)
-
-    return Point2f(_xi ,_yi)
-end
-
-mutable struct TrajectoryJoint <: AbstractJoint2D
-    body::Body2D
-    trajectory::Function  # функция траектории (t) -> [x, y, θ]
-    start_time::Float64   # время начала движения
-    duration::Float64     # продолжительность движения
-    index::Int64
-    
-    function TrajectoryJoint(body::Body2D, trajectory::Function, start_time::Float64=0.0, duration::Float64=1.0)
-        return new(body, trajectory, start_time, duration, -1)
-    end
-end
-
-number_of_dofs(::TrajectoryJoint) = 2
-
-function add!(sys::MBSystem2D, joint::TrajectoryJoint)
-    push!(sys.joints, joint)
-    last_joint_dof = last_lm_dof(sys) + number_of_dofs(joint)
-    push!(sys.lmdofs, last_joint_dof)
-    setid!(joint, length(sys.joints))
-end
-
-
-function get_lms(sys::MBSystem2D, joint::TrajectoryJoint)
+function get_lms(sys::MBSystem2D, joint::SliderJoint)
     last_lm = sys.lmdofs[joint.index]
     return SA[
         last_lm-1,
@@ -294,49 +243,155 @@ function get_lms(sys::MBSystem2D, joint::TrajectoryJoint)
     ]
 end
 
-function add_joint_to_rhs!(rhs, state, sys::MBSystem2D, joint::TrajectoryJoint)
-    body = joint.body
-    bd_p_dofs = get_body_position_dofs(sys, body)
-    bd_v_dofs = get_body_velocity_dofs(sys, body)
-    joint_dofs = get_lms(sys, joint)
-        # Ограничения для позиции и ориентации
-        rhs[joint_dofs[1]] = state[bd_p_dofs[1]] - desired[1]  # ошибка x
-        rhs[joint_dofs[2]] = state[bd_p_dofs[2]] - desired[2]  # ошибка y
-        
-        # Управляющие силы (лагранжевы множители)
-        rhs[bd_v_dofs[1]] += state[joint_dofs[1]]
-        rhs[bd_v_dofs[2]] += state[joint_dofs[2]]
+function set_position_on_first_body!(joint::SliderJoint, pos::SVector{2,Float64})
+    joint.body1_position = pos
+    return nothing
 end
 
-# Вспомогательные функции для создания траекторий
-function circular_trajectory(center, radius, angular_velocity)
-    return (t) -> [
-        center[1] + radius * cos(angular_velocity * t),
-        center[2] + radius * sin(angular_velocity * t),
-        angular_velocity * t
-    ]
+function set_position_on_second_body!(joint::SliderJoint, pos::SVector{2,Float64})
+    joint.body2_position = pos
+    return nothing
 end
 
-function linear_trajectory(start_pos, end_pos, duration)
-    return (t) -> [
-        start_pos[1] + (end_pos[1] - start_pos[1]) * t / duration,
-        start_pos[2] + (end_pos[2] - start_pos[2]) * t / duration,
-        start_pos[3] + (end_pos[3] - start_pos[3]) * t / duration
-    ]
+function set_direction_on_first_body!(joint::SliderJoint, dir::SVector{2,Float64})
+    joint.alpha1 = atan(dir[2], dir[1])
+    joint.body1_direction = dir
+    return nothing
 end
 
-function sinusoidal_trajectory(base_pos, amplitude, frequency, axis=1)
-    return (t) -> [
-        base_pos[1] + (axis == 1 ? amplitude * sin(frequency * t) : 0.0),
-        base_pos[2] + (axis == 2 ? amplitude * sin(frequency * t) : 0.0),
-        base_pos[3] + (axis == 3 ? amplitude * sin(frequency * t) : 0.0)
-    ]
+function set_direction_on_second_body!(joint::SliderJoint, dir::SVector{2,Float64})
+    joint.alpha2 = atan(dir[2], dir[1])
+    joint.body2_direction = dir
+    return nothing
 end
 
-function polynomial_trajectory(coefficients)
-    return (t) -> [
-        sum(coefficients[1][i] * t^(i-1) for i in 1:length(coefficients[1])),
-        sum(coefficients[2][i] * t^(i-1) for i in 1:length(coefficients[2])),
-        sum(coefficients[3][i] * t^(i-1) for i in 1:length(coefficients[3]))
-    ]
+function add_to_rhs!(rhs, state, sys::MBSystem2D, joint::SliderJoint)
+    bd1 = joint.body1
+    bd2 = joint.body2
+
+    bd1_p_dofs = get_body_position_dofs(sys, bd1)
+    bd1_v_dofs = get_body_velocity_dofs(sys, bd1)
+    bd2_p_dofs = get_body_position_dofs(sys, bd2)
+    bd2_v_dofs = get_body_velocity_dofs(sys, bd2)
+
+    _xi = state[bd1_p_dofs[1]]
+    _yi = state[bd1_p_dofs[2]]
+    _θi = state[bd1_p_dofs[3]]
+
+    # vxi = state[bd1_v_dofs[1]]
+    # vyi = state[bd1_v_dofs[2]]
+    # ωi = state[bd1_v_dofs[3]]
+
+    _xj = state[bd2_p_dofs[1]]
+    _yj = state[bd2_p_dofs[2]]
+    _θj = state[bd2_p_dofs[3]]
+
+    # vxj = state[bd2_v_dofs[1]]
+    # vyj = state[bd2_v_dofs[2]]
+    # ωj = state[bd2_v_dofs[3]]
+
+    lms = get_lms(sys, joint)
+    λ1 = state[lms[1]]
+    λ2 = state[lms[2]]
+
+    xci = joint.body1_position[1]
+    yci = joint.body1_position[2]
+    xdi = joint.body1_direction[1]
+    ydi = joint.body1_direction[2]
+
+    xcj = joint.body2_position[1]
+    ycj = joint.body2_position[2]
+    xdj = joint.body2_direction[1]
+    ydj = joint.body2_direction[2]
+
+    αi = joint.alpha1
+    αj = joint.alpha2
+    
+    # Constraint equations for slider joint:
+    # 1. Perpendicular distance between points is zero
+    # 2. Rotation difference (directions aligned)
+
+    # Position of slider points in global coordinates
+    xpi = _xi + xci * cos(_θi) - yci * sin(_θi)
+    ypi = _yi + xci * sin(_θi) + yci * cos(_θi)
+
+    xpj = _xj + xcj * cos(_θj) - ycj * sin(_θj)
+    ypj = _yj + xcj * sin(_θj) + ycj * cos(_θj)
+
+
+    # normal to direction in terms of first body in global CS
+    G_xni = -xdi*sin(_θi) - ydi*cos(_θi)
+    G_yni =  xdi*cos(_θi) - ydi*sin(_θi)
+
+    # Constraint 1: perpendicular distance
+    rhs[lms[1]] = (xpj - xpi) * G_xni + (ypj - ypi) * G_yni
+
+    # Constraint 2: direction alignment (rotation difference)
+    # dx_gj * dy_gi - dy_gj * dx_gi = 0 (cross product)
+    rhs[lms[2]] = _θj + αj - (_θi + αi)
+
+    # Velocity constraints
+    # For constraint 1: d/dt of the perpendicular distance
+    rhs[bd1_v_dofs[1]] += λ1 * G_xni 
+    rhs[bd1_v_dofs[2]] += λ1 * G_yni
+    rhs[bd1_v_dofs[3]] += λ1 * ((_yi - ypj) * G_xni + (xpj - _xi) * G_yni)
+
+    rhs[bd2_v_dofs[1]] += -λ1 * G_xni
+    rhs[bd2_v_dofs[2]] += -λ1 * G_yni
+    rhs[bd2_v_dofs[3]] += -λ1 * ((ypj - _yj ) * G_xni + (_xj - xpj) * G_yni)
+
+    # For constraint 2: d/dt of direction alignment
+    rhs[bd1_v_dofs[3]] += -λ2 
+    rhs[bd2_v_dofs[3]] += λ2
+end
+
+function compute_kinematic_residual!(residual::Vector{Float64}, coordinates::Vector{Float64}, sys::MBSystem2D, joint::FixedJoint)
+    bd1 = joint.body1
+    bd2 = joint.body2
+
+    bd1_g_dofs = get_body_generalized_dofs(sys, bd1)
+    bd2_g_dofs = get_body_generalized_dofs(sys, bd2)
+
+    _xi = coordinates[bd1_g_dofs[1]]
+    _yi = coordinates[bd1_g_dofs[2]]
+    _θi = coordinates[bd1_g_dofs[3]]
+
+    _xj = coordinates[bd2_g_dofs[1]]
+    _yj = coordinates[bd2_g_dofs[2]]
+    _θj = coordinates[bd2_g_dofs[3]]
+
+
+
+    xci = joint.body1_position[1]
+    yci = joint.body1_position[2]
+    xdi = joint.body1_direction[1]
+    ydi = joint.body1_direction[2]
+
+    xcj = joint.body2_position[1]
+    ycj = joint.body2_position[2]
+
+    αi = joint.alpha1
+    αj = joint.alpha2
+    
+    # Position of slider points in global coordinates
+    xpi = _xi + xci * cos(_θi) - yci * sin(_θi)
+    ypi = _yi + xci * sin(_θi) + yci * cos(_θi)
+
+    xpj = _xj + xcj * cos(_θj) - ycj * sin(_θj)
+    ypj = _yj + xcj * sin(_θj) + ycj * cos(_θj)
+
+
+    # normal to direction in terms of first body in global CS
+    G_xni = -xdi*sin(_θi) - ydi*cos(_θi)
+    G_yni =  xdi*cos(_θi) - ydi*sin(_θi)
+
+
+    joint_dofs = get_lms(sys, joint) .- last_body_dof(sys)
+    
+    # Constraint 1: perpendicular distance
+    residual[joint_dofs[1]] = (xpj - xpi) * G_xni + (ypj - ypi) * G_yni
+
+    # Constraint 2: direction alignment (rotation difference)
+    # dx_gj * dy_gi - dy_gj * dx_gi = 0 (cross product)
+    residual[joint_dofs[2]] = _θj + αj - (_θi + αi)
 end
